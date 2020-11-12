@@ -4,21 +4,15 @@ package utils
 
 import (
 	"context"
-	"time"
 
-	"go.uber.org/multierr"
+	"github.com/pingcap/br/pkg/retry"
 )
 
 // RetryableFunc presents a retryable operation.
-type RetryableFunc func() error
+type RetryableFunc = retry.RetryableFunc
 
 // Backoffer implements a backoff policy for retrying operations.
-type Backoffer interface {
-	// NextBackoff returns a duration to wait before retrying again
-	NextBackoff(err error) time.Duration
-	// Attempt returns the remain attempt times
-	Attempt() int
-}
+type Backoffer = retry.Backoffer
 
 // WithRetry retries a given operation with a backoff policy.
 //
@@ -29,19 +23,5 @@ func WithRetry(
 	retryableFunc RetryableFunc,
 	backoffer Backoffer,
 ) error {
-	var allErrors error
-	for backoffer.Attempt() > 0 {
-		err := retryableFunc()
-		if err != nil {
-			allErrors = multierr.Append(allErrors, err)
-			select {
-			case <-ctx.Done():
-				return allErrors
-			case <-time.After(backoffer.NextBackoff(err)):
-			}
-		} else {
-			return nil
-		}
-	}
-	return allErrors
+	return retry.WithRetry(ctx, retryableFunc, backoffer)
 }
